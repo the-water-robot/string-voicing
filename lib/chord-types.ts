@@ -29,8 +29,27 @@ export const QUALITY_LABELS: Record<ChordQuality, string> = {
   other: "Other",
 };
 
+export type Inversion = "root" | "first" | "second" | "third" | "voicing";
+
+export const INVERSION_LABELS: Record<Inversion, string> = {
+  root: "fondamentale",
+  first: "1° rivolto",
+  second: "2° rivolto",
+  third: "3° rivolto",
+  voicing: "voicing",
+};
+
+/** Tiny ordinal shown as a superscript on inverted chords ("" = none). */
+export const INVERSION_SHORT: Record<Inversion, string> = {
+  root: "",
+  first: "1",
+  second: "2",
+  third: "3",
+  voicing: "",
+};
+
 export type ChordMatch = {
-  /** Display name like "Am" or "Cmaj7" */
+  /** Display name like "Am", "Cmaj7", or a slash chord "C/E" */
   displayName: string;
   /** Root note, e.g. "C", "F#" */
   root: NoteName;
@@ -39,6 +58,8 @@ export type ChordMatch = {
   quality: ChordQuality;
   /** True when the selected notes are exactly the chord tones (no missing, no extra). */
   exact: boolean;
+  /** Position implied by the bass (lowest sounding) note, when known. */
+  inversion: Inversion;
 };
 
 export type GroupedMatches = {

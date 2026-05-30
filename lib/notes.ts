@@ -59,6 +59,11 @@ export function noteNameFromMidi(midi: number): NoteName {
   return NOTE_NAMES[((midi % 12) + 12) % 12];
 }
 
+/** Scientific-pitch octave number for a MIDI value (C4 = 60 → 4). */
+export function octaveOf(midi: number): number {
+  return Math.floor(midi / 12) - 1;
+}
+
 export function noteAt(stringIndex: number, fret: number, openPitches: string[]): {
   midi: number;
   name: NoteName;

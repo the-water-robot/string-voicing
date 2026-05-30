@@ -4,16 +4,21 @@ import {
   type ChordMatch,
   type ChordQuality,
   type GroupedMatches,
+  type Inversion,
   QUALITY_ORDER,
 } from "./chord-types";
 
 /**
  * Theory-based chord identification.
  *
- * Given the set of selected pitch classes (one note per string), we find every
- * named chord whose tones CONTAIN all of them. This is instrument- and
- * tuning-agnostic: chord names depend only on which pitch classes sound, so the
- * same engine serves ukulele, cavaquinho and guitar alike.
+ * Given the selected pitch classes (one note per string), we find every named
+ * chord whose tones CONTAIN all of them. Instrument- and tuning-agnostic:
+ * chord names depend only on which pitch classes sound, so the same engine
+ * serves ukulele, cavaquinho and guitar alike.
+ *
+ * `exact` flags the chords whose tones are *exactly* the selection (nothing
+ * missing, nothing extra). When a bass pitch class is supplied, each match also
+ * reports its inversion and gains a slash suffix (e.g. "C/E").
  */
 
 type ChordDef = { suffix: string; intervals: number[]; quality: ChordQuality };
@@ -44,9 +49,30 @@ const CHORD_DEFS: ChordDef[] = [
 
 const pcOf = (n: NoteName): number => NOTE_NAMES.indexOf(n);
 
-/** Find every named chord whose tones contain all selected pitch classes. */
-export function findChordsForNotes(selected: NoteName[]): GroupedMatches[] {
-  const sel = new Set(selected.map(pcOf));
+function inversionFromBass(
+  rootPc: number,
+  bassPc: number,
+  quality: ChordQuality,
+): Inversion {
+  const iv = ((bassPc - rootPc) % 12 + 12) % 12;
+  if (iv === 0) return "root";
+  if (iv === 3 || iv === 4) return "first";
+  if (iv === 6 || iv === 7 || iv === 8) return "second";
+  if (quality === "seventh" && (iv === 9 || iv === 10 || iv === 11)) {
+    return "third";
+  }
+  return "voicing";
+}
+
+/**
+ * @param notes  selected pitch classes (order irrelevant)
+ * @param bassPc pitch class of the lowest sounding note, if known
+ */
+export function findChordsForNotes(
+  notes: NoteName[],
+  bassPc?: number,
+): GroupedMatches[] {
+  const sel = new Set(notes.map(pcOf));
   if (sel.size === 0) return [];
 
   const matches: ChordMatch[] = [];
@@ -65,12 +91,23 @@ export function findChordsForNotes(selected: NoteName[]): GroupedMatches[] {
       if (!isSubset) continue;
 
       const rootName = NOTE_NAMES[root];
+      const inversion =
+        bassPc === undefined
+          ? "root"
+          : inversionFromBass(root, bassPc, def.quality);
+
+      let name = displayName(rootName, def.suffix);
+      if (bassPc !== undefined && bassPc !== root) {
+        name += `/${NOTE_NAMES[bassPc]}`;
+      }
+
       matches.push({
-        displayName: displayName(rootName, def.suffix),
+        displayName: name,
         root: rootName,
         suffix: def.suffix,
         quality: def.quality,
         exact: chordPcs.size === sel.size, // subset + equal size ⇒ identical
+        inversion,
       });
     }
   }
@@ -94,12 +131,21 @@ function groupAndSort(matches: ChordMatch[]): GroupedMatches[] {
     grouped[indexByQuality.get(m.quality)!].matches.push(m);
   }
 
+  const invRank: Record<Inversion, number> = {
+    root: 0,
+    first: 1,
+    second: 2,
+    third: 3,
+    voicing: 4,
+  };
+
   for (const g of grouped) {
     g.matches.sort((a, b) => {
-      // Exact matches first, then by root pitch class, then shorter suffix.
       if (a.exact !== b.exact) return a.exact ? -1 : 1;
       const rootCmp = pcOf(a.root) - pcOf(b.root);
       if (rootCmp !== 0) return rootCmp;
+      const invCmp = invRank[a.inversion] - invRank[b.inversion];
+      if (invCmp !== 0) return invCmp;
       return a.suffix.length - b.suffix.length;
     });
   }

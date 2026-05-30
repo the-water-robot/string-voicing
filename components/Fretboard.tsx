@@ -1,6 +1,7 @@
 "use client";
 
-import { noteAt, midiOf, type NoteName } from "@/lib/notes";
+import { noteAt, midiOf, octaveOf, type NoteName } from "@/lib/notes";
+import { octaveColor } from "@/lib/octaves";
 import type { Tuning } from "@/lib/tunings";
 import { FretCell } from "./FretCell";
 
@@ -13,7 +14,12 @@ const FRET_MARKERS: Record<number, "single" | "double"> = {
   12: "double",
 };
 
-export type SelectedCell = { string: number; fret: number; note: NoteName };
+export type SelectedCell = {
+  string: number;
+  fret: number;
+  note: NoteName;
+  midi: number;
+};
 
 type Props = {
   tuning: Tuning;
@@ -40,8 +46,8 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
   const isSelected = (s: number, f: number) =>
     selected.some((c) => c.string === s && c.fret === f);
 
-  const selectedNoteForString = (s: number) =>
-    selected.find((c) => c.string === s)?.note ?? null;
+  const selectedForString = (s: number) =>
+    selected.find((c) => c.string === s) ?? null;
 
   return (
     <div className="fretboard-scroll overflow-x-auto">
@@ -81,7 +87,8 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
           {displayIndices.map((stringIdx, displayPos) => {
             const openPitch = strings[stringIdx];
             const isLastDisplay = displayPos === displayIndices.length - 1;
-            const selectedNote = selectedNoteForString(stringIdx);
+            const selCell = selectedForString(stringIdx);
+            const selOct = selCell ? octaveOf(selCell.midi) : 0;
             const pitchLetter = openPitch.replace(/-?\d/g, "");
             const thickness = thicknessFor(midis[stringIdx], minMidi, maxMidi);
 
@@ -99,9 +106,10 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
                   <span style={{ fontFamily: "monospace", fontSize: "0.7rem", fontWeight: 700, color: "#40916c" }}>
                     {pitchLetter}
                   </span>
-                  {selectedNote && (
-                    <span style={{ marginTop: 2, borderRadius: 4, background: "rgba(245,230,176,0.15)", padding: "0 4px", fontFamily: "monospace", fontSize: "0.6rem", fontWeight: 700, color: "#f5e6b0" }}>
-                      {selectedNote}
+                  {selCell && (
+                    <span style={{ marginTop: 2, borderRadius: 4, background: `${octaveColor(selOct)}22`, padding: "0 4px", fontFamily: "monospace", fontSize: "0.6rem", fontWeight: 700, color: octaveColor(selOct), lineHeight: 1.3 }}>
+                      {selCell.note}
+                      <sup style={{ fontSize: "0.55em", marginLeft: 1 }}>{selOct}</sup>
                     </span>
                   )}
                 </div>
@@ -120,7 +128,7 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
                   </div>
 
                   {Array.from({ length: TOTAL_FRETS }, (_, fret) => {
-                    const { name } = noteAt(stringIdx, fret, strings);
+                    const { name, midi } = noteAt(stringIdx, fret, strings);
                     return (
                       <FretCell
                         key={fret}
@@ -130,7 +138,7 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
                         isOpen={fret === 0}
                         isLastFret={fret === TOTAL_FRETS - 1}
                         onToggle={() =>
-                          onToggleCell({ string: stringIdx, fret, note: name })
+                          onToggleCell({ string: stringIdx, fret, note: name, midi })
                         }
                       />
                     );

@@ -2,7 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { midiOf, noteAt, noteNameFromMidi } from "../lib/notes";
-import { STANDARD, CAVAQUINHO_DBGG, GUITAR_STANDARD } from "../lib/tunings";
+import {
+  STANDARD,
+  CAVAQUINHO_DBGG,
+  CAVAQUINHO_DGBD,
+  GUITAR_STANDARD,
+} from "../lib/tunings";
+import { NOTE_NAMES } from "../lib/notes";
 import { findChordsForNotes, findChordsForNote } from "../lib/chord-finder";
 import { classifySuffix } from "../lib/chord-types";
 
@@ -91,4 +97,31 @@ test("every returned chord contains all selected notes", () => {
 
 test("no matches for an empty selection", () => {
   assert.deepEqual(findChordsForNotes([]), []);
+});
+
+test("bass note produces slash naming and inversion", () => {
+  // C major triad with E in the bass → C/E, first inversion.
+  const bassE = NOTE_NAMES.indexOf("E");
+  const groups = findChordsForNotes(["C", "E", "G"], bassE);
+  const cMajor = groups
+    .find((g) => g.quality === "major")!
+    .matches.find((m) => m.root === "C" && m.exact)!;
+  assert.equal(cMajor.displayName, "C/E");
+  assert.equal(cMajor.inversion, "first");
+});
+
+test("root in bass stays root position with no slash", () => {
+  const bassC = NOTE_NAMES.indexOf("C");
+  const groups = findChordsForNotes(["C", "E", "G"], bassC);
+  const cMajor = groups
+    .find((g) => g.quality === "major")!
+    .matches.find((m) => m.root === "C" && m.exact)!;
+  assert.equal(cMajor.displayName, "C");
+  assert.equal(cMajor.inversion, "root");
+});
+
+test("brazilian cavaquinho is tuned D G B D", () => {
+  const pcs = CAVAQUINHO_DGBD.strings.map((s) => s.replace(/-?\d/g, ""));
+  assert.deepEqual([...new Set(pcs)].sort(), ["B", "D", "G"]);
+  assert.equal(CAVAQUINHO_DGBD.strings.length, 4);
 });

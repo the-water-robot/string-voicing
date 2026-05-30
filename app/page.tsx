@@ -31,10 +31,7 @@ export default function HomePage() {
     });
   };
 
-  const selectedNotes = selected
-    .slice()
-    .sort((a, b) => a.string - b.string)
-    .map((c) => c.note);
+  const selectedNotes = selected.map((c) => ({ note: c.note, midi: c.midi }));
 
   const handleInstrumentChange = (i: Instrument) => {
     setInstrument(i);
@@ -121,7 +118,7 @@ export default function HomePage() {
 
       {/* Results */}
       <section>
-        <ResultsPanel selectedNotes={selectedNotes} />
+        <ResultsPanel selected={selectedNotes} />
       </section>
 
       <footer className="mt-12 pt-4" style={{ borderTop: "1px solid #0c2a3a", color: "#1e4d5a", fontSize: "0.7rem" }}>

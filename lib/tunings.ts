@@ -39,6 +39,13 @@ export const CAVAQUINHO_DBGG: Tuning = {
   strings: ["G4", "G3", "B3", "D4"],
 };
 
+// Display top→bottom: D5 B4 G4 D4  (afinação brasileira "D G B D")
+export const CAVAQUINHO_DGBD: Tuning = {
+  id: "cava-dgbd",
+  name: "Brasileira (D G B D)",
+  strings: ["D4", "G4", "B4", "D5"],
+};
+
 /* ── Guitar ─────────────────────────────────────────────────── */
 // Display top→bottom: E4 B3 G3 D3 A2 E2
 export const GUITAR_STANDARD: Tuning = {
@@ -55,7 +62,7 @@ export const GUITAR_DROP_D: Tuning = {
 
 export const INSTRUMENTS: Instrument[] = [
   { id: "ukulele", name: "Ukulele", tunings: [STANDARD, LOW_G] },
-  { id: "cavaquinho", name: "Cavaquinho", tunings: [CAVAQUINHO_DBGG] },
+  { id: "cavaquinho", name: "Cavaquinho", tunings: [CAVAQUINHO_DBGG, CAVAQUINHO_DGBD] },
   { id: "guitar", name: "Chitarra", tunings: [GUITAR_STANDARD, GUITAR_DROP_D] },
 ];
 
