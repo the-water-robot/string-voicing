@@ -29,42 +29,16 @@ export const QUALITY_LABELS: Record<ChordQuality, string> = {
   other: "Other",
 };
 
-export type Inversion =
-  | "root"
-  | "first"
-  | "second"
-  | "third"
-  | "voicing";
-
-export const INVERSION_LABELS: Record<Inversion, string> = {
-  root: "Root position",
-  first: "1st inversion",
-  second: "2nd inversion",
-  third: "3rd inversion",
-  voicing: "voicing",
-};
-
-export type ChordPosition = {
-  frets: number[];
-  fingers?: number[];
-  baseFret: number;
-  barres?: number[];
-};
-
 export type ChordMatch = {
   /** Display name like "Am" or "Cmaj7" */
   displayName: string;
-  /** Normalized root, e.g. "C", "F#" */
+  /** Root note, e.g. "C", "F#" */
   root: NoteName;
-  /** Original suffix from chords-db, e.g. "major", "m7" */
+  /** Suffix, e.g. "" (major), "m", "maj7" */
   suffix: string;
   quality: ChordQuality;
-  inversion: Inversion;
-  /** Notes the voicing actually produces, in string order [G, C, E, A] */
-  notes: NoteName[];
-  /** Pitch (MIDI) of each string in this voicing, same order */
-  midi: number[];
-  position: ChordPosition;
+  /** True when the selected notes are exactly the chord tones (no missing, no extra). */
+  exact: boolean;
 };
 
 export type GroupedMatches = {
@@ -79,7 +53,6 @@ export function classifySuffix(suffix: string): ChordQuality {
   if (s.startsWith("sus")) return "suspended";
   if (s.startsWith("dim")) return "diminished";
   if (s.startsWith("aug")) return "augmented";
-  // Seventh family: 7, maj7, m7, m7b5, mmaj7, etc. — anything with a 7 in it that isn't already classified
   if (/(^|[^0-9])7/.test(s) || s.includes("maj7") || s.includes("mmaj7")) {
     return "seventh";
   }

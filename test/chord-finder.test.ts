@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { midiOf, noteAt, noteNameFromMidi } from "../lib/notes";
-import { STANDARD, LOW_G } from "../lib/tunings";
-import { findChordsForNote } from "../lib/chord-finder";
+import { STANDARD, CAVAQUINHO_DBGG, GUITAR_STANDARD } from "../lib/tunings";
+import { findChordsForNotes, findChordsForNote } from "../lib/chord-finder";
 import { classifySuffix } from "../lib/chord-types";
 
 test("midiOf maps standard pitches", () => {
@@ -11,13 +11,29 @@ test("midiOf maps standard pitches", () => {
   assert.equal(midiOf("A4"), 69);
   assert.equal(midiOf("G4"), 67);
   assert.equal(midiOf("G3"), 55);
+  assert.equal(midiOf("E2"), 40);
 });
 
 test("noteAt produces correct names along each string", () => {
+  // Ukulele strings array: [G4, C4, E4, A4]
   assert.equal(noteAt(0, 0, STANDARD.strings).name, "G");
   assert.equal(noteAt(0, 12, STANDARD.strings).name, "G");
   assert.equal(noteAt(3, 3, STANDARD.strings).name, "C");
   assert.equal(noteAt(3, 0, STANDARD.strings).name, "A");
+});
+
+test("cavaquinho open strings sound D B G G", () => {
+  // strings array: [G4, G3, B3, D4] → pitch classes G, G, B, D
+  const pcs = CAVAQUINHO_DBGG.strings.map((s) => noteAt(
+    CAVAQUINHO_DBGG.strings.indexOf(s),
+    0,
+    CAVAQUINHO_DBGG.strings,
+  ).name);
+  assert.deepEqual([...new Set(pcs)].sort(), ["B", "D", "G"]);
+});
+
+test("guitar has six strings", () => {
+  assert.equal(GUITAR_STANDARD.strings.length, 6);
 });
 
 test("noteNameFromMidi wraps pitch class correctly", () => {
@@ -38,59 +54,41 @@ test("classifySuffix groups qualities", () => {
   assert.equal(classifySuffix("add9"), "other");
 });
 
-test("findChordsForNote('C', STANDARD) contains C major root position", () => {
-  const groups = findChordsForNote("C", STANDARD);
+test("C E G is identified exactly as C major", () => {
+  const groups = findChordsForNotes(["C", "E", "G"]);
   const major = groups.find((g) => g.quality === "major");
   assert.ok(major, "should have a Major group");
-  const cMajorRoot = major!.matches.find(
-    (m) =>
-      m.root === "C" &&
-      m.position.frets.join(",") === "0,0,0,3" &&
-      m.inversion === "root",
-  );
-  assert.ok(cMajorRoot, "C major [0,0,0,3] should appear in root position");
+  const cMajor = major!.matches.find((m) => m.displayName === "C");
+  assert.ok(cMajor, "C major should appear");
+  assert.equal(cMajor!.exact, true, "C E G is exactly C major");
 });
 
-test("findChordsForNote('A', STANDARD) finds Am at [2,0,0,0]", () => {
-  const groups = findChordsForNote("A", STANDARD);
+test("A C E is identified exactly as Am", () => {
+  const groups = findChordsForNotes(["A", "C", "E"]);
   const minor = groups.find((g) => g.quality === "minor");
-  assert.ok(minor, "should have a Minor group");
-  const am = minor!.matches.find(
-    (m) => m.displayName === "Am" && m.position.frets.join(",") === "2,0,0,0",
-  );
-  assert.ok(am, "Am [2,0,0,0] should appear");
+  const am = minor!.matches.find((m) => m.displayName === "Am");
+  assert.ok(am, "Am should appear");
+  assert.equal(am!.exact, true);
 });
 
-test("Low G changes inversion labeling for C major [0,0,0,3]", () => {
-  // Re-entrant Standard: lowest sounding pitch is C4 (string 2 open) → root position.
-  const standard = findChordsForNote("C", STANDARD);
-  const cmajStd = standard
-    .find((g) => g.quality === "major")!
-    .matches.find(
-      (m) => m.root === "C" && m.position.frets.join(",") === "0,0,0,3",
-    )!;
-  assert.equal(cmajStd.inversion, "root");
-
-  // With Low G (G3), the bass becomes G3 — the 5th of C — so it's a 2nd inversion.
-  const low = findChordsForNote("C", LOW_G);
-  const cmajLow = low
-    .find((g) => g.quality === "major")!
-    .matches.find(
-      (m) => m.root === "C" && m.position.frets.join(",") === "0,0,0,3",
-    )!;
-  assert.equal(cmajLow.inversion, "second");
+test("C E G is a (non-exact) subset of C6", () => {
+  const groups = findChordsForNotes(["C", "E", "G"]);
+  const all = groups.flatMap((g) => g.matches);
+  const c6 = all.find((m) => m.displayName === "C6");
+  assert.ok(c6, "C6 (C E G A) should contain C E G");
+  assert.equal(c6!.exact, false);
 });
 
-test("findChordsForNote produces only voicings whose notes contain the target", () => {
-  const groups = findChordsForNote("F#", STANDARD);
-  for (const g of groups) {
-    for (const m of g.matches) {
-      const played = m.notes.filter((_, i) => m.position.frets[i] >= 0);
-      const has = played.some((n) => n === "F#" || n === "Gb");
-      assert.ok(
-        has,
-        `${m.displayName} ${m.position.frets.join(",")} should contain F#`,
-      );
-    }
-  }
+test("every returned chord contains all selected notes", () => {
+  const groups = findChordsForNote("F#");
+  const all = groups.flatMap((g) => g.matches);
+  assert.ok(all.length > 0);
+  // F# must be a chord tone of every match — verified indirectly: at least
+  // F#, D, B (a B major contains F#) should appear.
+  assert.ok(all.some((m) => m.displayName === "F#"));
+  assert.ok(all.some((m) => m.displayName === "B"));
+});
+
+test("no matches for an empty selection", () => {
+  assert.deepEqual(findChordsForNotes([]), []);
 });

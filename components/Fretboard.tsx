@@ -1,6 +1,6 @@
 "use client";
 
-import { noteAt, type NoteName } from "@/lib/notes";
+import { noteAt, midiOf, type NoteName } from "@/lib/notes";
 import type { Tuning } from "@/lib/tunings";
 import { FretCell } from "./FretCell";
 
@@ -21,13 +21,21 @@ type Props = {
   onToggleCell: (cell: SelectedCell) => void;
 };
 
-// String thickness: C (idx 1) is thickest for nylon re-entrant uke
-const STRING_THICKNESS = [1.5, 2.5, 2, 1.5];
+/** Map an open-string pitch to a stroke width: lower pitches read thicker. */
+function thicknessFor(midi: number, min: number, max: number): number {
+  if (max === min) return 2;
+  const t = (max - midi) / (max - min); // 0 = highest, 1 = lowest
+  return 1.2 + t * 1.8; // 1.2px … 3.0px
+}
 
 export function Fretboard({ tuning, selected, onToggleCell }: Props) {
-  const stringLabels = tuning.strings;
-  // A (idx 3) on top → G (idx 0) on bottom
-  const displayIndices = [3, 2, 1, 0];
+  const strings = tuning.strings;
+  // index 0 = highest string number (bottom). Display reversed → string 1 on top.
+  const displayIndices = strings.map((_, i) => i).reverse();
+
+  const midis = strings.map((s) => midiOf(s));
+  const minMidi = Math.min(...midis);
+  const maxMidi = Math.max(...midis);
 
   const isSelected = (s: number, f: number) =>
     selected.some((c) => c.string === s && c.fret === f);
@@ -41,22 +49,20 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
 
         {/* Fret position dot markers row */}
         <div className="mb-1 flex" style={{ paddingLeft: 52 }}>
-          {/* spacer for open column */}
           <div style={{ width: 36, flexShrink: 0 }} />
           {Array.from({ length: 12 }, (_, i) => i + 1).map((fret) => {
             const marker = FRET_MARKERS[fret];
+            const dot = { display: "block", width: 7, height: 7, borderRadius: "50%", background: "rgba(0,180,216,0.35)" } as const;
             return (
               <div
                 key={fret}
                 style={{ width: 36, flexShrink: 0, height: 14, display: "flex", alignItems: "center", justifyContent: "center" }}
               >
-                {marker === "single" && (
-                  <span style={{ display: "block", width: 7, height: 7, borderRadius: "50%", background: "rgba(0,180,216,0.35)" }} />
-                )}
+                {marker === "single" && <span style={dot} />}
                 {marker === "double" && (
                   <span style={{ display: "flex", gap: 3 }}>
-                    <span style={{ display: "block", width: 7, height: 7, borderRadius: "50%", background: "rgba(0,180,216,0.35)" }} />
-                    <span style={{ display: "block", width: 7, height: 7, borderRadius: "50%", background: "rgba(0,180,216,0.35)" }} />
+                    <span style={dot} />
+                    <span style={dot} />
                   </span>
                 )}
               </div>
@@ -73,10 +79,11 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
           }}
         >
           {displayIndices.map((stringIdx, displayPos) => {
-            const openPitch = stringLabels[stringIdx];
+            const openPitch = strings[stringIdx];
             const isLastDisplay = displayPos === displayIndices.length - 1;
             const selectedNote = selectedNoteForString(stringIdx);
-            const pitchLetter = openPitch.replace(/\d/, "");
+            const pitchLetter = openPitch.replace(/-?\d/g, "");
+            const thickness = thicknessFor(midis[stringIdx], minMidi, maxMidi);
 
             return (
               <div
@@ -88,30 +95,12 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
                 }}
               >
                 {/* String label */}
-                <div
-                  style={{
-                    width: 52,
-                    flexShrink: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    paddingRight: 8,
-                  }}
-                >
+                <div style={{ width: 52, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", paddingRight: 8 }}>
                   <span style={{ fontFamily: "monospace", fontSize: "0.7rem", fontWeight: 700, color: "#40916c" }}>
                     {pitchLetter}
                   </span>
                   {selectedNote && (
-                    <span style={{
-                      marginTop: 2,
-                      borderRadius: 4,
-                      background: "rgba(245,230,176,0.15)",
-                      padding: "0 4px",
-                      fontFamily: "monospace",
-                      fontSize: "0.6rem",
-                      fontWeight: 700,
-                      color: "#f5e6b0",
-                    }}>
+                    <span style={{ marginTop: 2, borderRadius: 4, background: "rgba(245,230,176,0.15)", padding: "0 4px", fontFamily: "monospace", fontSize: "0.6rem", fontWeight: 700, color: "#f5e6b0" }}>
                       {selectedNote}
                     </span>
                   )}
@@ -119,26 +108,19 @@ export function Fretboard({ tuning, selected, onToggleCell }: Props) {
 
                 {/* Cells + string line */}
                 <div style={{ position: "relative", display: "flex" }}>
-                  {/* String line */}
                   <div
                     aria-hidden
-                    style={{
-                      position: "absolute",
-                      top: 0, bottom: 0, left: 0, right: 0,
-                      pointerEvents: "none",
-                      display: "flex",
-                      alignItems: "center",
-                    }}
+                    style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, pointerEvents: "none", display: "flex", alignItems: "center" }}
                   >
                     <div style={{
                       width: "100%",
-                      height: STRING_THICKNESS[stringIdx],
+                      height: thickness,
                       background: "linear-gradient(to right, transparent, rgba(201,168,108,0.82) 3%, rgba(201,168,108,0.82) 97%, transparent)",
                     }} />
                   </div>
 
                   {Array.from({ length: TOTAL_FRETS }, (_, fret) => {
-                    const { name } = noteAt(stringIdx, fret, tuning.strings);
+                    const { name } = noteAt(stringIdx, fret, strings);
                     return (
                       <FretCell
                         key={fret}

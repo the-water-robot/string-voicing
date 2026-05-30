@@ -1,144 +1,86 @@
-import ukuleleData from "@tombatossals/chords-db/lib/ukulele.json";
+import { NOTE_NAMES, type NoteName } from "./notes";
 import {
-  NOTE_NAMES,
-  type NoteName,
-  midiOf,
-  noteNameFromMidi,
-  normalizeRoot,
-} from "./notes";
-import type { Tuning } from "./tunings";
-import {
-  classifySuffix,
   displayName,
   type ChordMatch,
-  type ChordPosition,
+  type ChordQuality,
   type GroupedMatches,
-  type Inversion,
   QUALITY_ORDER,
 } from "./chord-types";
 
-type RawPosition = {
-  frets: number[];
-  fingers?: number[];
-  baseFret?: number;
-  barres?: number[];
-  midi?: number[];
-};
+/**
+ * Theory-based chord identification.
+ *
+ * Given the set of selected pitch classes (one note per string), we find every
+ * named chord whose tones CONTAIN all of them. This is instrument- and
+ * tuning-agnostic: chord names depend only on which pitch classes sound, so the
+ * same engine serves ukulele, cavaquinho and guitar alike.
+ */
 
-type RawChord = {
-  key: string;
-  suffix: string;
-  positions: RawPosition[];
-};
+type ChordDef = { suffix: string; intervals: number[]; quality: ChordQuality };
 
-type RawDB = {
-  chords: Record<string, RawChord[]>;
-};
+// Intervals are semitones from the root.
+const CHORD_DEFS: ChordDef[] = [
+  { suffix: "", intervals: [0, 4, 7], quality: "major" },
+  { suffix: "m", intervals: [0, 3, 7], quality: "minor" },
+  { suffix: "dim", intervals: [0, 3, 6], quality: "diminished" },
+  { suffix: "aug", intervals: [0, 4, 8], quality: "augmented" },
+  { suffix: "sus2", intervals: [0, 2, 7], quality: "suspended" },
+  { suffix: "sus4", intervals: [0, 5, 7], quality: "suspended" },
+  { suffix: "6", intervals: [0, 4, 7, 9], quality: "major" },
+  { suffix: "m6", intervals: [0, 3, 7, 9], quality: "minor" },
+  { suffix: "7", intervals: [0, 4, 7, 10], quality: "seventh" },
+  { suffix: "maj7", intervals: [0, 4, 7, 11], quality: "seventh" },
+  { suffix: "m7", intervals: [0, 3, 7, 10], quality: "seventh" },
+  { suffix: "m7b5", intervals: [0, 3, 6, 10], quality: "seventh" },
+  { suffix: "dim7", intervals: [0, 3, 6, 9], quality: "diminished" },
+  { suffix: "mMaj7", intervals: [0, 3, 7, 11], quality: "seventh" },
+  { suffix: "add9", intervals: [0, 2, 4, 7], quality: "other" },
+  { suffix: "madd9", intervals: [0, 2, 3, 7], quality: "other" },
+  { suffix: "9", intervals: [0, 2, 4, 7, 10], quality: "seventh" },
+  { suffix: "maj9", intervals: [0, 2, 4, 7, 11], quality: "seventh" },
+  { suffix: "m9", intervals: [0, 2, 3, 7, 10], quality: "seventh" },
+  { suffix: "7sus4", intervals: [0, 5, 7, 10], quality: "seventh" },
+];
 
-const DB = ukuleleData as unknown as RawDB;
+const pcOf = (n: NoteName): number => NOTE_NAMES.indexOf(n);
 
-const ALL_CHORDS: RawChord[] = Object.values(DB.chords).flat();
+/** Find every named chord whose tones contain all selected pitch classes. */
+export function findChordsForNotes(selected: NoteName[]): GroupedMatches[] {
+  const sel = new Set(selected.map(pcOf));
+  if (sel.size === 0) return [];
 
-export function loadUkuleleChords(): RawChord[] {
-  return ALL_CHORDS;
-}
-
-function voicingNotes(
-  position: RawPosition,
-  tuning: Tuning,
-): { midi: number[]; notes: NoteName[]; played: boolean[] } {
-  const baseFret = position.baseFret ?? 1;
-  const midi: number[] = [];
-  const notes: NoteName[] = [];
-  const played: boolean[] = [];
-  for (let i = 0; i < tuning.strings.length; i++) {
-    const f = position.frets[i];
-    if (f === undefined || f < 0) {
-      played.push(false);
-      midi.push(-1);
-      notes.push("C");
-      continue;
-    }
-    const open = midiOf(tuning.strings[i]);
-    const absoluteFret = f === 0 ? 0 : f + (baseFret - 1);
-    const m = open + absoluteFret;
-    midi.push(m);
-    notes.push(noteNameFromMidi(m));
-    played.push(true);
-  }
-  return { midi, notes, played };
-}
-
-const PITCH_CLASS_BY_NAME: Record<NoteName, number> = NOTE_NAMES.reduce(
-  (acc, n, i) => {
-    acc[n] = i;
-    return acc;
-  },
-  {} as Record<NoteName, number>,
-);
-
-function inversionFor(
-  rootPc: number,
-  midi: number[],
-  played: boolean[],
-  suffix: string,
-): Inversion {
-  let lowest = Infinity;
-  for (let i = 0; i < midi.length; i++) {
-    if (played[i] && midi[i] < lowest) lowest = midi[i];
-  }
-  if (!isFinite(lowest)) return "voicing";
-  const interval = ((lowest % 12) - rootPc + 12) % 12;
-  const quality = classifySuffix(suffix);
-
-  if (interval === 0) return "root";
-  if (interval === 4 || interval === 3) return "first";
-  if (interval === 7 || interval === 6 || interval === 8) return "second";
-  if (
-    quality === "seventh" &&
-    (interval === 10 || interval === 11 || interval === 9)
-  ) {
-    return "third";
-  }
-  return "voicing";
-}
-
-function buildMatches(
-  filterFn: (voicingPcs: Set<number>) => boolean,
-  tuning: Tuning,
-): ChordMatch[] {
   const matches: ChordMatch[] = [];
-  for (const chord of ALL_CHORDS) {
-    const root = normalizeRoot(chord.key);
-    const rootPc = PITCH_CLASS_BY_NAME[root];
-    for (const position of chord.positions) {
-      if (!position.frets || position.frets.length < tuning.strings.length) continue;
-      const { midi, notes, played } = voicingNotes(position, tuning);
-      const voicingPcs = new Set(
-        notes.filter((_, i) => played[i]).map((n) => PITCH_CLASS_BY_NAME[n]),
-      );
-      if (!filterFn(voicingPcs)) continue;
 
-      const inv = inversionFor(rootPc, midi, played, chord.suffix);
-      const pos: ChordPosition = {
-        frets: position.frets,
-        fingers: position.fingers,
-        baseFret: position.baseFret ?? 1,
-        barres: position.barres,
-      };
+  for (let root = 0; root < 12; root++) {
+    for (const def of CHORD_DEFS) {
+      const chordPcs = new Set(def.intervals.map((i) => (root + i) % 12));
+
+      let isSubset = true;
+      for (const p of sel) {
+        if (!chordPcs.has(p)) {
+          isSubset = false;
+          break;
+        }
+      }
+      if (!isSubset) continue;
+
+      const rootName = NOTE_NAMES[root];
       matches.push({
-        displayName: displayName(root, chord.suffix),
-        root,
-        suffix: chord.suffix,
-        quality: classifySuffix(chord.suffix),
-        inversion: inv,
-        notes,
-        midi,
-        position: pos,
+        displayName: displayName(rootName, def.suffix),
+        root: rootName,
+        suffix: def.suffix,
+        quality: def.quality,
+        exact: chordPcs.size === sel.size, // subset + equal size ⇒ identical
       });
     }
   }
-  return matches;
+
+  return groupAndSort(matches);
+}
+
+/** Convenience wrapper for a single selected note. */
+export function findChordsForNote(selected: NoteName): GroupedMatches[] {
+  return findChordsForNotes([selected]);
 }
 
 function groupAndSort(matches: ChordMatch[]): GroupedMatches[] {
@@ -147,56 +89,20 @@ function groupAndSort(matches: ChordMatch[]): GroupedMatches[] {
     matches: [],
   }));
   const indexByQuality = new Map(grouped.map((g, i) => [g.quality, i]));
+
   for (const m of matches) {
-    const i = indexByQuality.get(m.quality)!;
-    grouped[i].matches.push(m);
+    grouped[indexByQuality.get(m.quality)!].matches.push(m);
   }
 
-  const invRank: Record<Inversion, number> = {
-    root: 0,
-    first: 1,
-    second: 2,
-    third: 3,
-    voicing: 4,
-  };
   for (const g of grouped) {
     g.matches.sort((a, b) => {
-      const rootCmp = PITCH_CLASS_BY_NAME[a.root] - PITCH_CLASS_BY_NAME[b.root];
+      // Exact matches first, then by root pitch class, then shorter suffix.
+      if (a.exact !== b.exact) return a.exact ? -1 : 1;
+      const rootCmp = pcOf(a.root) - pcOf(b.root);
       if (rootCmp !== 0) return rootCmp;
-      const invCmp = invRank[a.inversion] - invRank[b.inversion];
-      if (invCmp !== 0) return invCmp;
-      return a.position.baseFret - b.position.baseFret;
+      return a.suffix.length - b.suffix.length;
     });
   }
 
   return grouped.filter((g) => g.matches.length > 0);
-}
-
-/** Find every voicing containing the given single pitch class. */
-export function findChordsForNote(
-  selected: NoteName,
-  tuning: Tuning,
-): GroupedMatches[] {
-  const targetPc = PITCH_CLASS_BY_NAME[selected];
-  return groupAndSort(
-    buildMatches((pcs) => pcs.has(targetPc), tuning),
-  );
-}
-
-/**
- * Find every voicing whose sounded notes contain ALL of the given pitch classes.
- * When multiple notes are selected (one per string), this returns chords that
- * include every selected pitch class simultaneously.
- */
-export function findChordsForNotes(
-  selected: NoteName[],
-  tuning: Tuning,
-): GroupedMatches[] {
-  if (selected.length === 0) return [];
-  if (selected.length === 1) return findChordsForNote(selected[0], tuning);
-
-  const targetPcs = [...new Set(selected.map((n) => PITCH_CLASS_BY_NAME[n]))];
-  return groupAndSort(
-    buildMatches((pcs) => targetPcs.every((pc) => pcs.has(pc)), tuning),
-  );
 }
