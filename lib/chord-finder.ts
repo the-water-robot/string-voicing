@@ -120,6 +120,84 @@ export function findChordsForNote(selected: NoteName): GroupedMatches[] {
   return findChordsForNotes([selected]);
 }
 
+// ── Nearest-chord approximation ──────────────────────────────────────────────
+
+/** Only the most common "easy" chord shapes used for approximation. */
+const SIMPLE_DEFS: ChordDef[] = [
+  { suffix: "", intervals: [0, 4, 7], quality: "major" },
+  { suffix: "m", intervals: [0, 3, 7], quality: "minor" },
+  { suffix: "7", intervals: [0, 4, 7, 10], quality: "seventh" },
+  { suffix: "maj7", intervals: [0, 4, 7, 11], quality: "seventh" },
+  { suffix: "m7", intervals: [0, 3, 7, 10], quality: "seventh" },
+  { suffix: "sus2", intervals: [0, 2, 7], quality: "suspended" },
+  { suffix: "sus4", intervals: [0, 5, 7], quality: "suspended" },
+  { suffix: "dim", intervals: [0, 3, 6], quality: "diminished" },
+];
+
+/** Minimum circular semitone distance between two pitch classes (0–6). */
+function pcDist(a: number, b: number): number {
+  const d = Math.abs(a - b) % 12;
+  return Math.min(d, 12 - d);
+}
+
+export type NearestChord = {
+  displayName: string;
+  root: NoteName;
+  quality: ChordQuality;
+  /** Sum of min-distances from each selected PC to the nearest chord tone. */
+  distance: number;
+};
+
+/**
+ * Find the top-N simplest chords that best approximate the selected notes.
+ * Ignores octave — works purely on pitch class. A distance of 0 means exact
+ * match; distance of N means the selected notes are N semitones away in total.
+ */
+export function findNearestChords(
+  selected: NoteName[],
+  topN = 4,
+): NearestChord[] {
+  if (selected.length === 0) return [];
+  const selPcs = [...new Set(selected.map(pcOf))];
+
+  const results: NearestChord[] = [];
+
+  for (let root = 0; root < 12; root++) {
+    for (const def of SIMPLE_DEFS) {
+      const chordPcs = def.intervals.map((i) => (root + i) % 12);
+
+      // Total distance: for each selected PC, find nearest chord tone.
+      let dist = 0;
+      for (const sp of selPcs) {
+        dist += Math.min(...chordPcs.map((cp) => pcDist(sp, cp)));
+      }
+
+      results.push({
+        displayName: displayName(NOTE_NAMES[root], def.suffix),
+        root: NOTE_NAMES[root],
+        quality: def.quality,
+        distance: dist,
+      });
+    }
+  }
+
+  // Sort by distance, break ties by shorter suffix (simpler chord), then root order.
+  results.sort((a, b) => {
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    if (a.displayName.length !== b.displayName.length)
+      return a.displayName.length - b.displayName.length;
+    return pcOf(a.root) - pcOf(b.root);
+  });
+
+  // Deduplicate by displayName, take topN.
+  const seen = new Set<string>();
+  return results.filter((r) => {
+    if (seen.has(r.displayName)) return false;
+    seen.add(r.displayName);
+    return true;
+  }).slice(0, topN);
+}
+
 function groupAndSort(matches: ChordMatch[]): GroupedMatches[] {
   const grouped: GroupedMatches[] = QUALITY_ORDER.map((q) => ({
     quality: q,

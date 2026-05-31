@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { findChordsForNotes } from "@/lib/chord-finder";
+import { findChordsForNotes, findNearestChords } from "@/lib/chord-finder";
 import {
   QUALITY_LABELS,
   INVERSION_LABELS,
@@ -28,6 +28,11 @@ export function ResultsPanel({ selected }: Props) {
   const groups = useMemo(
     () => findChordsForNotes(sorted.map((s) => s.note), bassPc),
     [sorted, bassPc],
+  );
+
+  const nearest = useMemo(
+    () => findNearestChords(sorted.map((s) => s.note)),
+    [sorted],
   );
 
   if (selected.length === 0) {
@@ -101,6 +106,53 @@ export function ResultsPanel({ selected }: Props) {
           {anyExact ? `${total} esatti` : `${total} possibili`}
         </span>
       </div>
+
+      {/* ── Suona come… ── */}
+      {nearest.length > 0 && (
+        <div style={{
+          borderRadius: 14,
+          border: "1px solid rgba(82,183,136,0.2)",
+          background: "rgba(5,28,18,0.7)",
+          padding: "12px 16px",
+        }}>
+          <div style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#40916c", marginBottom: 10 }}>
+            Suona come…
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            {nearest.map((n) => {
+              const exact = n.distance === 0;
+              return (
+                <span
+                  key={n.displayName}
+                  title={exact ? "accordo esatto" : `distanza ~${n.distance} semitoni`}
+                  style={{
+                    borderRadius: 10,
+                    padding: "6px 16px",
+                    fontFamily: "monospace",
+                    fontSize: "1.05rem",
+                    fontWeight: 800,
+                    border: exact
+                      ? "1px solid rgba(245,200,66,0.5)"
+                      : "1px solid rgba(82,183,136,0.3)",
+                    background: exact
+                      ? "rgba(245,200,66,0.13)"
+                      : "rgba(82,183,136,0.08)",
+                    color: exact ? "#f5e6b0" : "#74c69d",
+                    boxShadow: exact ? "0 0 10px 1px rgba(245,200,66,0.15)" : "none",
+                  }}
+                >
+                  {n.displayName}
+                  {!exact && (
+                    <sup style={{ fontSize: "0.5em", marginLeft: 3, opacity: 0.6 }}>
+                      ~{n.distance}
+                    </sup>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {total === 0 ? (
         <div style={{ borderRadius: 16, border: "1px dashed rgba(0,100,140,0.35)", padding: "32px 24px", textAlign: "center" }}>
