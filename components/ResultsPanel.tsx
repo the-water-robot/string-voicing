@@ -2,11 +2,7 @@
 
 import { useMemo } from "react";
 import { findChordsForNotes, findNearestChords } from "@/lib/chord-finder";
-import {
-  QUALITY_LABELS,
-  INVERSION_LABELS,
-  INVERSION_SHORT,
-} from "@/lib/chord-types";
+import { QUALITY_LABELS, INVERSION_LABELS } from "@/lib/chord-types";
 import { NOTE_NAMES, octaveOf, type NoteName } from "@/lib/notes";
 import { octaveColor } from "@/lib/octaves";
 
@@ -107,8 +103,8 @@ export function ResultsPanel({ selected }: Props) {
         </span>
       </div>
 
-      {/* ── Suona come… ── */}
-      {nearest.length > 0 && (
+      {/* ── Suona come… — solo accordi esatti (distanza 0) ── */}
+      {nearest.some((n) => n.distance === 0) && (
         <div style={{
           borderRadius: 14,
           border: "1px solid rgba(82,183,136,0.2)",
@@ -119,37 +115,24 @@ export function ResultsPanel({ selected }: Props) {
             Suona come…
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            {nearest.map((n) => {
-              const exact = n.distance === 0;
-              return (
-                <span
-                  key={n.displayName}
-                  title={exact ? "accordo esatto" : `distanza ~${n.distance} semitoni`}
-                  style={{
-                    borderRadius: 10,
-                    padding: "6px 16px",
-                    fontFamily: "monospace",
-                    fontSize: "1.05rem",
-                    fontWeight: 800,
-                    border: exact
-                      ? "1px solid rgba(245,200,66,0.5)"
-                      : "1px solid rgba(82,183,136,0.3)",
-                    background: exact
-                      ? "rgba(245,200,66,0.13)"
-                      : "rgba(82,183,136,0.08)",
-                    color: exact ? "#f5e6b0" : "#74c69d",
-                    boxShadow: exact ? "0 0 10px 1px rgba(245,200,66,0.15)" : "none",
-                  }}
-                >
-                  {n.displayName}
-                  {!exact && (
-                    <sup style={{ fontSize: "0.5em", marginLeft: 3, opacity: 0.6 }}>
-                      ~{n.distance}
-                    </sup>
-                  )}
-                </span>
-              );
-            })}
+            {nearest.filter((n) => n.distance === 0).map((n) => (
+              <span
+                key={n.displayName}
+                style={{
+                  borderRadius: 10,
+                  padding: "6px 16px",
+                  fontFamily: "monospace",
+                  fontSize: "1.05rem",
+                  fontWeight: 800,
+                  border: "1px solid rgba(245,200,66,0.5)",
+                  background: "rgba(245,200,66,0.13)",
+                  color: "#f5e6b0",
+                  boxShadow: "0 0 10px 1px rgba(245,200,66,0.15)",
+                }}
+              >
+                {n.displayName}
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -173,27 +156,19 @@ export function ResultsPanel({ selected }: Props) {
                 {QUALITY_LABELS[group.quality]}
               </h3>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {group.matches.map((m) => {
-                  const ord = INVERSION_SHORT[m.inversion];
-                  return (
-                    <span
-                      key={m.displayName}
-                      title={INVERSION_LABELS[m.inversion]}
-                      style={
-                        m.exact
-                          ? { borderRadius: 12, border: "1px solid rgba(245,200,66,0.55)", background: "rgba(245,200,66,0.14)", padding: "8px 18px", fontFamily: "monospace", fontSize: "1rem", fontWeight: 700, color: "#f5e6b0", boxShadow: "0 0 12px 1px rgba(245,200,66,0.18)" }
-                          : { borderRadius: 12, border: "1px solid rgba(201,168,108,0.2)", background: "rgba(10,20,15,0.6)", padding: "8px 18px", fontFamily: "monospace", fontSize: "1rem", fontWeight: 600, color: "#9c8a63" }
-                      }
-                    >
-                      {m.displayName}
-                      {ord && (
-                        <sup style={{ fontSize: "0.6em", marginLeft: 2, opacity: 0.75 }}>
-                          {ord}
-                        </sup>
-                      )}
-                    </span>
-                  );
-                })}
+                {group.matches.map((m) => (
+                  <span
+                    key={m.displayName}
+                    title={INVERSION_LABELS[m.inversion]}
+                    style={
+                      m.exact
+                        ? { borderRadius: 12, border: "1px solid rgba(245,200,66,0.55)", background: "rgba(245,200,66,0.14)", padding: "8px 18px", fontFamily: "monospace", fontSize: "1rem", fontWeight: 700, color: "#f5e6b0", boxShadow: "0 0 12px 1px rgba(245,200,66,0.18)" }
+                        : { borderRadius: 12, border: "1px solid rgba(201,168,108,0.2)", background: "rgba(10,20,15,0.6)", padding: "8px 18px", fontFamily: "monospace", fontSize: "1rem", fontWeight: 600, color: "#9c8a63" }
+                    }
+                  >
+                    {m.displayName}
+                  </span>
+                ))}
               </div>
             </section>
           ))}
