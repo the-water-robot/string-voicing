@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { findChordsForNotes, findNearestChords } from "@/lib/chord-finder";
+import { findChordsForNotes } from "@/lib/chord-finder";
 import { QUALITY_LABELS, INVERSION_LABELS } from "@/lib/chord-types";
 import { NOTE_NAMES, octaveOf, type NoteName } from "@/lib/notes";
 import { octaveColor } from "@/lib/octaves";
@@ -26,12 +26,7 @@ export function ResultsPanel({ selected }: Props) {
     [sorted, bassPc],
   );
 
-  const nearest = useMemo(
-    () => findNearestChords(sorted.map((s) => s.note)),
-    [sorted],
-  );
-
-  if (selected.length === 0) {
+if (selected.length === 0) {
     return (
       <div style={{ borderRadius: 16, border: "1px dashed rgba(0,100,140,0.4)", background: "rgba(5,20,30,0.5)", padding: "40px 24px", textAlign: "center" }}>
         <p style={{ color: "#1e5c6a", fontSize: "0.85rem" }}>
@@ -102,40 +97,6 @@ export function ResultsPanel({ selected }: Props) {
           {anyExact ? `${total} esatti` : `${total} possibili`}
         </span>
       </div>
-
-      {/* ── Suona come… — solo accordi esatti (distanza 0) ── */}
-      {nearest.some((n) => n.distance === 0) && (
-        <div style={{
-          borderRadius: 14,
-          border: "1px solid rgba(82,183,136,0.2)",
-          background: "rgba(5,28,18,0.7)",
-          padding: "12px 16px",
-        }}>
-          <div style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#40916c", marginBottom: 10 }}>
-            Suona come…
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            {nearest.filter((n) => n.distance === 0).map((n) => (
-              <span
-                key={n.displayName}
-                style={{
-                  borderRadius: 10,
-                  padding: "6px 16px",
-                  fontFamily: "monospace",
-                  fontSize: "1.05rem",
-                  fontWeight: 800,
-                  border: "1px solid rgba(245,200,66,0.5)",
-                  background: "rgba(245,200,66,0.13)",
-                  color: "#f5e6b0",
-                  boxShadow: "0 0 10px 1px rgba(245,200,66,0.15)",
-                }}
-              >
-                {n.displayName}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {total === 0 ? (
         <div style={{ borderRadius: 16, border: "1px dashed rgba(0,100,140,0.35)", padding: "32px 24px", textAlign: "center" }}>
