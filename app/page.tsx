@@ -16,6 +16,7 @@ export default function HomePage() {
   const [instrument, setInstrument] = useState<Instrument>(INSTRUMENTS[0]);
   const [tuning, setTuning] = useState<Tuning>(INSTRUMENTS[0].tunings[0]);
   const [selected, setSelected] = useState<SelectedCell[]>([]);
+  const [capo, setCapo] = useState<number>(0);
 
   const toggleCell = (cell: SelectedCell) => {
     setSelected((prev) => {
@@ -33,15 +34,23 @@ export default function HomePage() {
 
   const selectedNotes = selected.map((c) => ({ note: c.note, midi: c.midi }));
 
+  const handleCapoChange = (fret: number) => {
+    setCapo(fret);
+    // Clear any selection on frets that are now behind the capo
+    setSelected((prev) => prev.filter((c) => c.fret >= fret));
+  };
+
   const handleInstrumentChange = (i: Instrument) => {
     setInstrument(i);
     setTuning(i.tunings[0]);
     setSelected([]);
+    setCapo(0);
   };
 
   const handleTuningChange = (t: Tuning) => {
     setTuning(t);
     setSelected([]);
+    setCapo(0);
   };
 
   return (
@@ -111,6 +120,8 @@ export default function HomePage() {
               tuning={tuning}
               selected={selected}
               onToggleCell={toggleCell}
+              capo={capo}
+              onCapoChange={handleCapoChange}
             />
           </div>
         </div>
